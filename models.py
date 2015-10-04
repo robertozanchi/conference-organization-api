@@ -110,7 +110,6 @@ class ConferenceQueryForms(messages.Message):
 
 class Session(ndb.Model):
     """Session -- Session object"""
-    _use_memcache   = True
     name                    = ndb.StringProperty(required=True)
     highlights              = ndb.StringProperty()
     speaker                 = ndb.StringProperty(required=True)
@@ -132,3 +131,11 @@ class SessionForm(messages.Message):
     startTime               = messages.StringField(8) # DateTimeField()
     websafeKey              = messages.StringField(9)
 
+class SessionForms(messages.Message):
+    """SessionForms -- multiple Session outbound form message"""
+    items = messages.MessageField(SessionForm, 1, repeated=True)
+
+class SpeakerForm(messages.Message):
+    """SpeakerForm -- Speaker outbound form message"""
+    speaker                 = messages.StringField(1)
+    sessionNames            = messages.StringField(2, repeated=True)
