@@ -54,7 +54,9 @@ EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
 
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
 
 DEFAULTS = {
     "city": "Default City",
@@ -109,6 +111,7 @@ WISHLIST_POST_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSessionKey=messages.StringField(1, required=True),
 )
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -380,7 +383,97 @@ class ConferenceApi(remote.Service):
         )
 
 
-# - - - Task 1: Sessions endpoints and objects - - - - - - - - - - - - - - - -
+# - - - Task 1 - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+# - - - Session objects - - - - - - - - - - - - - - - - - - - - -
+
+
+    def _copySessionToForm(self, session):
+        """Copy relevant fields from Session to SessionForm."""
+        sf = SessionForm()
+        for field in sf.all_fields():
+            if hasattr(session, field.name):
+                # convert Date to date string; just copy others
+                if field.name.endswith('Date'):
+                    setattr(sf, field.name, str(getattr(session, field.name)))
+                elif field.name == "startTime":
+                    setattr(sf, field.name, str(getattr(session, field.name)))
+                elif field.name == "date":
+                    setattr(sf, field.name, str(getattr(session, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(session, field.name))
+            elif field.name == "websafeKey":
+                setattr(sf, field.name, session.key.urlsafe())
+        sf.check_initialized()
+        return sf
+
+
+    def _createSessionObject(self, request):
+        """Create or update Conference object, returning ConferenceForm/request."""
+        # preload necessary data items
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = _getUserId()
+
+        if not request.name:
+            raise endpoints.BadRequestException("Session 'name' field required")
+
+        # fetch and check conference
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        # check that conference exists
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+
+        # check that user is owner
+        if user_id != conf.organizerUserId:
+            raise endpoints.ForbiddenException(
+                'Only the owner can add sessions.')
+
+        # copy SessionForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+
+        # convert dates from strings to Date objects
+        if data['date']:
+            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
+
+        # convert time from strings to Time object (date-independent)
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'][:5], "%H:%M").time()
+
+        # generate session key based on parent-child relationship
+        p_key = ndb.Key(Conference, conf.key.id())
+        c_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        c_key = ndb.Key(Session, c_id, parent=p_key)
+        data['key'] = c_key
+        data['organizerUserId'] = user_id
+        del data['websafeConferenceKey']
+        del data['websafeKey']
+
+        Session(**data).put()
+
+        # # check if speaker exists in other sections; if so, add to memcache
+        # sessions = Session.query(Session.speaker == data['speaker'],
+        #     ancestor=p_key)
+        # if len(list(sessions)) > 1:
+        #     cache_data = {}
+        #     cache_data['speaker'] = data['speaker']
+        #     # cache_data['sessions'] = sessions # TODO: get pickler to load full properties...
+        #     cache_data['sessionNames'] = [session.name for session in sessions]
+        #     if not memcache.set('featured_speaker', cache_data):
+        #         logging.error('Memcache set failed.')
+
+        return request
+
+
+    @endpoints.method(SessionForm, SessionForm,
+            path='sessions',
+            http_method='POST', name='createSession')
+    def createSession(self, request):
+        """Open to the organizer of the conference"""
+        return self._createSessionObject(request)
 
 
     #getConferenceSessions(websafeConferenceKey) endpoint
@@ -437,6 +530,7 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in sessions]
         )
 
+
     #getSessionsBySpeaker(speaker) endpoint
     @endpoints.method(SESSIONS_BY_SPEAKER, SessionForms,
             path='sessions/by_speaker/{speaker}',
@@ -484,133 +578,10 @@ class ConferenceApi(remote.Service):
     #     )
 
 
-# - - - Session objects - - - - - - - - - - - - - - - - - - - - -
-
-
-    def _copySessionToForm(self, session):
-        """Copy relevant fields from Session to SessionForm."""
-        sf = SessionForm()
-        for field in sf.all_fields():
-            if field.name == "websafeKey":
-                setattr(sf, field.name, session.key.urlsafe())
-        sf.check_initialized()
-        return sf
-
-
-    def _createSessionObject(self, request):
-        """Create or update Conference object, returning ConferenceForm/request."""
-        # preload necessary data items
-        user = endpoints.get_current_user()
-        if not user:
-            raise endpoints.UnauthorizedException('Authorization required')
-        user_id = _getUserId()
-
-        if not request.name:
-            raise endpoints.BadRequestException("Session 'name' field required")
-
-        # fetch and check conference
-        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-        # check that conference exists
-        if not conf:
-            raise endpoints.NotFoundException(
-                'No conference found with key: %s' % request.websafeConferenceKey)
-
-        # check that user is owner
-        if user_id != conf.organizerUserId:
-            raise endpoints.ForbiddenException(
-                'Only the owner can add sessions.')
-
-        # copy SessionForm/ProtoRPC Message into dict
-        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-
-        # convert dates from strings to Date objects
-        if data['date']:
-            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
-
-        # convert time from strings to Time object (date-independent)
-        if data['startTime']:
-            data['startTime'] = datetime.strptime(data['startTime'][:5], "%H:%M").time()
-
-        # generate key based on parent-child relationship
-        p_key = ndb.Key(Conference, conf.key.id())
-        c_id = Session.allocate_ids(size=1, parent=p_key)[0]
-        c_key = ndb.Key(Session, c_id, parent=p_key)
-        data['key'] = c_key
-        data['organizerUserId'] = user_id
-        del data['websafeConferenceKey']
-        del data['websafeKey']
-
-        Session(**data).put()
-
-        # # check if speaker exists in other sections; if so, add to memcache
-        # sessions = Session.query(Session.speaker == data['speaker'],
-        #     ancestor=p_key)
-        # if len(list(sessions)) > 1:
-        #     cache_data = {}
-        #     cache_data['speaker'] = data['speaker']
-        #     # cache_data['sessions'] = sessions # TODO: get pickler to load full properties...
-        #     cache_data['sessionNames'] = [session.name for session in sessions]
-        #     if not memcache.set('featured_speaker', cache_data):
-        #         logging.error('Memcache set failed.')
-
-        return request
-
-    @endpoints.method(SessionForm, SessionForm,
-            path='sessions',
-            http_method='POST', name='createSession')
-    def createSession(self, request):
-        """Open to the organizer of the conference"""
-        return self._createSessionObject(request)
+# - - - Speaker entity (optional) - - - - - - - - - - - - - - - -
 
 
 # - - - end of Task 1 - - - - - - - - - - - - - - - - - - - - -
-
-
-# - - - Task 2 - - - - - - - - - - - - - - - - - - - - - - - - 
-
-
-# - - - Wishlist objects - - - - - - - - - - - - - - - - - - -
-
-
-    # User may add any conference sessions to own wishlist
-    @endpoints.method(WISHLIST_POST_REQUEST, BooleanMessage,
-                      path='addSessionToWishlist',
-                      http_method='POST', name='addSessionToWishlist')
-    def addSessionToWishlist(self, request):
-        """Adds a session to the user's wishlist"""
-        session = ndb.Key(urlsafe=request.websafeSessionKey).get()
-
-        # check that session exists
-        if not session:
-            raise endpoints.NotFoundException(
-                'No session found with key: %s' % request.websafeSessionKey)
-        # get user Profile
-        profile = self._getProfileFromUser()
-        # add session key to user's profile in sessionWishlistKeys
-        profile.sessionWishlistKeys.append(request.websafeSessionKey)
-        profile.put()
-
-        return BooleanMessage(data=True)
-
-
-    @endpoints.method(message_types.VoidMessage, SessionForms,
-                      path='getSessionWishlist',
-                      http_method='GET', name='getSessionsInWishlist')
-    def getSessionsInWishlist(self, request):
-        """Retrieves all sessions saved in user's wishlist"""
-        # get user profile
-        profile = self._getProfileFromUser()
-
-        # get keys for all sessions in wishlist
-        sess_keys = [ndb.Key(urlsafe=sessionKey) for sessionKey in profile.sessionWishlistKeys]
-        # fetch sessions from datastore
-        # use get_multi(array_of_keys) to fetch all keys at once
-        sessionsWL = ndb.get_multi(sess_keys)
-        return SessionForms(items=[self._copySessionToForm(sess) \
-                            for sess in sessionsWL])
-
-
-# - - - end of Task 2 - - - - - - - - - - - - - - - - - - - - 
 
 
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
@@ -688,6 +659,53 @@ class ConferenceApi(remote.Service):
     def saveProfile(self, request):
         """Update & return user profile."""
         return self._doProfile(request)
+
+
+# - - - Task 2 - - - - - - - - - - - - - - - - - - - - - - - - 
+
+
+# - - - Wishlist objects - - - - - - - - - - - - - - - - - - -
+
+
+    # User may add any conference sessions to own wishlist
+    @endpoints.method(WISHLIST_POST_REQUEST, BooleanMessage,
+                      path='addSessionToWishlist',
+                      http_method='POST', name='addSessionToWishlist')
+    def addSessionToWishlist(self, request):
+        """Adds a session to the user's wishlist"""
+        session = ndb.Key(urlsafe=request.websafeSessionKey).get()
+
+        # check that session exists
+        if not session:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % request.websafeSessionKey)
+        # get user Profile
+        profile = self._getProfileFromUser()
+        # add session key to user's profile in sessionWishlistKeys
+        profile.sessionWishlistKeys.append(request.websafeSessionKey)
+        profile.put()
+
+        return BooleanMessage(data=True)
+
+
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+                      path='getSessionWishlist',
+                      http_method='GET', name='getSessionsInWishlist')
+    def getSessionsInWishlist(self, request):
+        """Retrieves all sessions saved in user's wishlist"""
+        # get user profile
+        profile = self._getProfileFromUser()
+
+        # get keys for all sessions in wishlist
+        sess_keys = [ndb.Key(urlsafe=wssk) for wssk in profile.sessionWishlistKeys]
+        # fetch sessions from datastore
+        # use get_multi(array_of_keys) to fetch all keys at once
+        sessionsWL = ndb.get_multi(sess_keys)
+        return SessionForms(items=[self._copySessionToForm(session) \
+                            for session in sessionsWL])
+
+
+# - - - end of Task 2 - - - - - - - - - - - - - - - - - - - - 
 
 
 # - - - Announcements - - - - - - - - - - - - - - - - - - - -

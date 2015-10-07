@@ -27,7 +27,6 @@ class Profile(ndb.Model):
     mainEmail = ndb.StringProperty()
     teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
     conferenceKeysToAttend = ndb.StringProperty(repeated=True)
-    sessionKeysToWishlist = ndb.StringProperty(repeated=True)
     sessionWishlistKeys = ndb.StringProperty(repeated=True)
 
 class ProfileMiniForm(messages.Message):
@@ -138,7 +137,19 @@ class SessionForms(messages.Message):
     """SessionForms -- multiple Session outbound form message"""
     items = messages.MessageField(SessionForm, 1, repeated=True)
 
+class Speaker(ndb.Model):
+    """Speaker -- Speaker object"""    
+    displayName = ndb.StringProperty(required=True)
+    profileKey = ndb.StringProperty() #if speaker is also an attendee 
+    biography = ndb.StringProperty()
+
 class SpeakerForm(messages.Message):
-    """SpeakerForm -- Speaker outbound form message"""
-    speaker                 = messages.StringField(1)
-    sessionNames            = messages.StringField(2, repeated=True)
+    """SpeakerForm -- create Speaker form message"""
+    displayName = messages.StringField(1)
+    profileKey = messages.StringField(2)
+    biography = messages.StringField(3)
+    websafeKey = messages.StringField(4)
+
+class SpeakerForms(messages.Message):
+    """SpeakerForm -- multiple Speaker outbound form message"""
+    items = messages.MessageField(SpeakerForm, 1, repeated=True)
