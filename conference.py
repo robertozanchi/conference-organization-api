@@ -465,7 +465,7 @@ class ConferenceApi(remote.Service):
         # check that speaker entry exists to match key
         if data['speakerKey']:
             speaker = ndb.Key(urlsafe=request.speakerKey).get()
-            if speaker = None:
+            if speaker == None:
                 raise endpoints.BadRequestException("No speaker associated with key entered")
 
             if data['speakerName']:
@@ -544,19 +544,19 @@ class ConferenceApi(remote.Service):
         )
 
 
-    #getSessionsBySpeaker(speaker) endpoint
+    #getSessionsBySpeaker(speaker) endpoint - another version could query by speaker key
     @endpoints.method(SESSIONS_BY_SPEAKER, SessionForms,
             path='sessions/by_speaker/{speaker}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
-        """Get list of all conference sessions for a specified speaker"""
+        """Get list of all conference sessions for a specified speaker name"""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         speaker = data['speaker']
 
         # create query for all key matches for this conference
-        sessions = Session.query(Session.speaker == speaker)
+        sessions = Session.query(Session.speakerName == speaker)
 
         # return set of ConferenceForm objects per Conference
         return SessionForms(
@@ -564,6 +564,9 @@ class ConferenceApi(remote.Service):
         )
 
 # - - - Task 3: Work on additional queries - - - - - - - - - - - - -
+
+   # Query 2: Select sessions by speaker key
+   
 
     
     # Query 1: Select sessions of specified maximum duration
