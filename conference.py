@@ -114,6 +114,11 @@ SESSION_MAX_DURATION = endpoints.ResourceContainer(
     maxDuration=messages.IntegerField(1),
 )
 
+COUNT_SPEAKER_SESSIONS = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    speaker=messages.StringField(1),
+)
+
 WISHLIST_POST_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSessionKey=messages.StringField(1, required=True),
@@ -390,7 +395,7 @@ class ConferenceApi(remote.Service):
         )
 
 
-# - - - Task 1: Add Sessions to a conference - - - - - - - - - - 
+# - - - Task 1: Add Sessions and Speakers to a conference - - - - - - - - - - 
 
 
 # - - - Session objects - - - - - - - - - - - - - - - - - - - - -
@@ -401,10 +406,8 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(session, field.name):
-                # convert time and date fields to string; just copy others
-                if field.name.endswith('Date'):
-                    setattr(sf, field.name, str(getattr(session, field.name)))
-                elif field.name == "startTime":
+                # convert date and time fields to string; just copy others
+                if field.name == "startTime":
                     setattr(sf, field.name, str(getattr(session, field.name)))
                 elif field.name == "date":
                     setattr(sf, field.name, str(getattr(session, field.name)))
@@ -417,7 +420,7 @@ class ConferenceApi(remote.Service):
 
 
     def _createSessionObject(self, request):
-        """Create or update Session object, returning request."""
+        """Create or update Session object"""
         # preload necessary data items
         user = endpoints.get_current_user()
         if not user:
@@ -468,7 +471,7 @@ class ConferenceApi(remote.Service):
             path='sessions',
             http_method='POST', name='createSession')
     def createSession(self, request):
-        """Open to the organizer of the conference"""
+        """The organizer of the conference can create a session"""
         return self._createSessionObject(request)
 
 
@@ -546,10 +549,10 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in sessions]
         )
 
-# - - - Task 3: Work on additional queries - - - - - - -
+# - - - Task 3: Work on additional queries - - - - - - - - - - - - -
 
     
-    # 1: Query to select sessions of specified maximum duration
+    # Query 1: Select sessions of specified maximum duration
     @endpoints.method(SESSION_MAX_DURATION, SessionForms,
             path='sessions/by_max_duration',
             http_method='GET', name='sessionsMaxDuration')
@@ -568,8 +571,12 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in sessions]
         )
 
+    
+    # Query 2: 
 
-    # 3: Solution to 'query for non-workshop sessions before 7 pm' problem
+
+    # Query 3: Problem: How to select non-workshop sessions before 7 pm
+
     # The Datastore doesn't support NDB Queries with multiple inequalities on different fields
     # The proposed solution is to use NDB Query to apply one criterion, and iterate over the results on the other 
     @endpoints.method(message_types.VoidMessage, SessionForms,
@@ -917,6 +924,9 @@ class ConferenceApi(remote.Service):
     def unregisterFromConference(self, request):
         """Unregister user for selected conference."""
         return self._conferenceRegistration(request, reg=False)
+
+
+# - - - Adds featured speakers to memcache
 
 
 api = endpoints.api_server([ConferenceApi]) # register API
