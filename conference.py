@@ -463,17 +463,18 @@ class ConferenceApi(remote.Service):
         del data['websafeKey']
 
         # check that speaker entry exists to match key
-        speaker = ndb.Key(urlsafe=request.speakerKey).get()
-        if speaker = None:
-            raise endpoints.BadRequestException("No speaker associated with key entered")
+        if data['speakerKey']:
+            speaker = ndb.Key(urlsafe=request.speakerKey).get()
+            if speaker = None:
+                raise endpoints.BadRequestException("No speaker associated with key entered")
 
-        if data['speakerName']:
-            # raise exception if speaker name and key don't match
-            if data['speakerName'] != speaker.displayName:
-                raise endpoints.BadRequestException("Speaker name and key entered don't match")
-        else:
-            # assign speaker name if valid key but no name was given
-            data['speakerName'] = speaker.displayName
+            if data['speakerName']:
+                # raise exception if speaker name and key don't match
+                if data['speakerName'] != speaker.displayName:
+                    raise endpoints.BadRequestException("Speaker name and key entered don't match")
+                else:
+                # assign speaker name if valid key but no name was given
+                    data['speakerName'] = speaker.displayName
 
         Session(**data).put()
 

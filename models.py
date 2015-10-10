@@ -115,7 +115,7 @@ class Session(ndb.Model):
     name                    = ndb.StringProperty(required=True)
     highlights              = ndb.StringProperty()
     speakerName             = ndb.StringProperty()
-    speakerKey              = ndb.StringProperty(required=True) # changed from 'speaker'
+    speakerKey              = ndb.StringProperty()
     duration                = ndb.IntegerProperty() # in minutes
     typeOfSession           = ndb.StringProperty(repeated=True)
     date                    = ndb.DateProperty()
