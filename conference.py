@@ -13,7 +13,7 @@ created by wesc on 2014 apr 21
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
-from datetime import datetime
+from datetime import datetime, timedelta, time as timed
 import json
 import os
 import time
@@ -383,7 +383,7 @@ class ConferenceApi(remote.Service):
         )
 
 
-# - - - Task 1 - - - - - - - - - - - - - - - - - - - - - - - - -
+# - - - Task 1: Add Sessions to a conference - - - - - - - - - - 
 
 
 # - - - Session objects - - - - - - - - - - - - - - - - - - - - -
@@ -394,7 +394,7 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(session, field.name):
-                # convert Date to date string; just copy others
+                # convert time and date fields to string; just copy others
                 if field.name.endswith('Date'):
                     setattr(sf, field.name, str(getattr(session, field.name)))
                 elif field.name == "startTime":
@@ -410,7 +410,7 @@ class ConferenceApi(remote.Service):
 
 
     def _createSessionObject(self, request):
-        """Create or update Conference object, returning ConferenceForm/request."""
+        """Create or update Session object, returning request."""
         # preload necessary data items
         user = endpoints.get_current_user()
         if not user:
@@ -536,8 +536,7 @@ class ConferenceApi(remote.Service):
             path='sessions/by_speaker/{speaker}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
-        """Get list of all sessions for a speaker accross all conferences.
-           If no speakerKey is provided, all sessions are returned"""
+        """Get list of all conference sessions for a specified speaker"""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -549,6 +548,33 @@ class ConferenceApi(remote.Service):
         # return set of ConferenceForm objects per Conference
         return SessionForms(
             items=[self._copySessionToForm(session) for session in sessions]
+        )
+
+# - - - Task 3: Work on additional queries - - - - - - -
+
+
+    # Solution for query for non-workshop sessions before 7 pm
+    # The Datastore doesn't support NDB Queries with multiple inequalities on different fields
+    # The proposed solution is to use NDB Query to apply one criterion, and iterate over the results on the other 
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+            http_method='GET', name='getEarlyNonWorkshopSessions')
+    def getEarlyNonWorkshopSessions(self, request):
+        """Get all non-workshop sessions with start time before 7:00 pm"""
+
+        sessions = Session.query(ndb.AND(
+                Session.startTime != None,
+                Session.startTime <= timed(hour=19)
+                ))
+
+        filtered_sessions = []
+        for session in sessions:
+            if 'workshop' or 'Workshop' in session.typeOfSession:
+                continue
+            else:
+                filtered_sessions.append(session)
+
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in filtered_sessions]
         )
 
 
@@ -581,10 +607,13 @@ class ConferenceApi(remote.Service):
 # - - - Speaker entity (optional) - - - - - - - - - - - - - - - -
 
 
+
+
 # - - - end of Task 1 - - - - - - - - - - - - - - - - - - - - -
 
 
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
+
 
     def _copyProfileToForm(self, prof):
         """Copy relevant fields from Profile to ProfileForm."""
@@ -664,7 +693,7 @@ class ConferenceApi(remote.Service):
 # - - - Task 2 - - - - - - - - - - - - - - - - - - - - - - - - 
 
 
-# - - - Wishlist objects - - - - - - - - - - - - - - - - - - -
+# - - - Wishlist endpoints - - - - - - - - - - - - - - - - - - -
 
 
     # User may add any conference sessions to own wishlist
