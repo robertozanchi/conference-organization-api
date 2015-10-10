@@ -42,7 +42,9 @@ from models import ConferenceQueryForms
 from models import Session
 from models import SessionForm
 from models import SessionForms
+from models import Speaker
 from models import SpeakerForm
+from models import SpeakerForms
 from models import TeeShirtSize
 
 from settings import WEB_CLIENT_ID
@@ -105,6 +107,11 @@ SESSION_POST_REQUEST = endpoints.ResourceContainer(
 SESSIONS_BY_SPEAKER = endpoints.ResourceContainer(
     message_types.VoidMessage,
     speaker=messages.StringField(1),
+)
+
+SESSION_MAX_DURATION = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    maxDuration=messages.IntegerField(1),
 )
 
 WISHLIST_POST_REQUEST = endpoints.ResourceContainer(
@@ -552,8 +559,28 @@ class ConferenceApi(remote.Service):
 
 # - - - Task 3: Work on additional queries - - - - - - -
 
+    
+    # 1: Query to select sessions of specified maximum duration
+    @endpoints.method(SESSION_MAX_DURATION, SessionForms,
+            path='sessions/by_max_duration',
+            http_method='GET', name='sessionsMaxDuration')
+    def sessionsMaxDuration(self, request):
+        """Get list of all conference sessions with duration less or equal to max duration"""
 
-    # Solution for query for non-workshop sessions before 7 pm
+        # copy ConferenceForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        maxDuration = int(data['maxDuration'])
+
+        # create query for all key matches for this conference
+        sessions = Session.query(Session.duration <= maxDuration)
+
+        # return set of ConferenceForm objects per Conference
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in sessions]
+        )
+
+
+    # 3: Solution to 'query for non-workshop sessions before 7 pm' problem
     # The Datastore doesn't support NDB Queries with multiple inequalities on different fields
     # The proposed solution is to use NDB Query to apply one criterion, and iterate over the results on the other 
     @endpoints.method(message_types.VoidMessage, SessionForms,
