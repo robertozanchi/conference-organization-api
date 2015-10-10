@@ -450,7 +450,7 @@ class ConferenceApi(remote.Service):
         if data['startTime']:
             data['startTime'] = datetime.strptime(data['startTime'][:5], "%H:%M").time()
 
-        # generate session key based on parent-child relationship
+        # generate Session key based on parent-child relationship
         p_key = ndb.Key(Conference, conf.key.id())
         c_id = Session.allocate_ids(size=1, parent=p_key)[0]
         c_key = ndb.Key(Session, c_id, parent=p_key)
@@ -460,17 +460,6 @@ class ConferenceApi(remote.Service):
         del data['websafeKey']
 
         Session(**data).put()
-
-        # # check if speaker exists in other sections; if so, add to memcache
-        # sessions = Session.query(Session.speaker == data['speaker'],
-        #     ancestor=p_key)
-        # if len(list(sessions)) > 1:
-        #     cache_data = {}
-        #     cache_data['speaker'] = data['speaker']
-        #     # cache_data['sessions'] = sessions # TODO: get pickler to load full properties...
-        #     cache_data['sessionNames'] = [session.name for session in sessions]
-        #     if not memcache.set('featured_speaker', cache_data):
-        #         logging.error('Memcache set failed.')
 
         return request
 
@@ -605,35 +594,66 @@ class ConferenceApi(remote.Service):
         )
 
 
-    # @endpoints.method(CONF_GET_REQUEST, SessionForms,
-    #         http_method='GET', name='getConferenceSessionFeed')
-    # def getConferenceSessionFeed(self, request):
-    #     """Returns a conference's sorted feed of sessions occurring same day and later."""
-
-    #     # copy ConferenceForm/ProtoRPC Message into dict
-    #     data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-
-    #     # fetch existing conference
-    #     conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
-
-    #     # check that conference exists
-    #     if not conf:
-    #         raise endpoints.NotFoundException(
-    #             'No conference found with key: %s' % request.websafeConferenceKey)
-
-    #     sessions = Session.query(ancestor=ndb.Key(Conference, conf.key.id()))\
-    #                       .filter(Session.date >= datetime.now()-timedelta(1))\
-    #                       .order(Session.date, Session.startTime)
-
-    #     # return set of SessionForm objects per Session
-    #     return SessionForms(
-    #         items=[self._copySessionToForm(session) for session in sessions]
-    #     )
+# - - - End of task 3 - - - - - - - - - - - - - - - - - - - - 
 
 
-# - - - Speaker entity (optional) - - - - - - - - - - - - - - - -
+# - - - Speaker objects - - - - - - - - - - - - - - - - - - - - - -
 
 
+    def _copySpeakerToForm(self, speaker):
+        """Copy relevant fields from Speaker to SpeakerForm."""
+        sf = SpeakerForm()
+        for field in sf.all_fields():
+            if hasattr(speaker, field.name):
+                setattr(sf, field.name, getattr(speaker,field.name))
+            elif field.name == "websafeKey":
+                setattr(sf, field.name, speaker.key.urlsafe())
+        sf.check_initialized()
+        return sf
+
+
+    def _createSpeakerObject(self, request):
+        """Create or update Speaker object"""
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = _getUserId()
+
+        if not request.displayName:
+            raise endpoints.BadRequestException("Speaker 'diplayName' field required")
+
+        # copy SpeakerForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        del data['websafeKey']
+
+        # generate Speaker key
+        sp_id = Speaker.allocate_ids(size=1)[0]
+        sp_key = ndb.Key(Speaker, sp_id)
+        data['key'] = sp_key
+
+        # create Speaker
+        Speaker(**data).put()
+
+        return request
+
+
+    @endpoints.method(SpeakerForm, SpeakerForm,
+            path='speaker',
+            http_method='POST', name='addSpeaker')
+    def addSpeaker(self, request):
+        """Create a new speaker"""
+        return self._createSpeakerObject(request)
+
+    # Endpoint that returns all registered speakers
+    @endpoints.method(message_types.VoidMessage, SpeakerForms,
+            http_method='GET', name='allSpeakers')
+    def allSpeakers(self, request):
+        """Get all registered speakers"""
+        speakers = Speaker.query()
+
+        return SpeakerForms(
+            items=[self._copySpeakerToForm(speaker) for speaker in speakers]
+        )
 
 
 # - - - end of Task 1 - - - - - - - - - - - - - - - - - - - - -
@@ -717,10 +737,7 @@ class ConferenceApi(remote.Service):
         return self._doProfile(request)
 
 
-# - - - Task 2 - - - - - - - - - - - - - - - - - - - - - - - - 
-
-
-# - - - Wishlist endpoints - - - - - - - - - - - - - - - - - - -
+# - - - Task 2: Wishlist endpoints - - - - - - - - - - - - - - - - -
 
 
     # User may add any conference sessions to own wishlist
@@ -766,6 +783,7 @@ class ConferenceApi(remote.Service):
 
 # - - - Announcements - - - - - - - - - - - - - - - - - - - -
 
+
     @staticmethod
     def _cacheAnnouncement():
         """Create Announcement & assign to memcache; used by
@@ -810,6 +828,7 @@ class ConferenceApi(remote.Service):
 
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
+
 
     @ndb.transactional(xg=True)
     def _conferenceRegistration(self, request, reg=True):
