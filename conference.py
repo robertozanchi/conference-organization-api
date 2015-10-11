@@ -55,6 +55,7 @@ from settings import ANDROID_AUDIENCE
 EMAIL_SCOPE = endpoints.EMAIL_SCOPE
 API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
+MEMCACHE_FEATURED_SPEAKER_KEY = "FEATURED_SPEAKER"
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -468,13 +469,28 @@ class ConferenceApi(remote.Service):
             if speaker == None:
                 raise endpoints.BadRequestException("No speaker associated with key entered")
 
-            if data['speakerName']:
+            elif data['speakerName']:
                 # raise exception if speaker name and key don't match
                 if data['speakerName'] != speaker.displayName:
                     raise endpoints.BadRequestException("Speaker name and key entered don't match")
-                else:
+            else:
                 # assign speaker name if valid key but no name was given
-                    data['speakerName'] = speaker.displayName
+                data['speakerName'] = speaker.displayName
+
+
+# - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
+
+
+        # inputs speaker key and name into featured speaker function in main.py 
+        if data['speakerName']:
+            sessions = Session.query(Session.speakerName == data['speakerName'])
+            if sessions.count() > 0:
+                memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
+                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speaker: %s will speak at %s" % (data['speakerName'], data['name'])) 
+
+
+# - - - End of Task 4, continued below - - - - - - - - - - - - - - -
+
 
         Session(**data).put()
 
@@ -521,7 +537,7 @@ class ConferenceApi(remote.Service):
             path='conference/{websafeConferenceKey}/sessions/by_type/{typeOfSession}',
             http_method='GET', name='getConferenceSessionsByType')
     def getConferenceSessionsByType(self, request):
-        """Given a conference, return all sessions of a specified type"""
+        """Given a conference, return all sessions of a specified type."""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -549,7 +565,7 @@ class ConferenceApi(remote.Service):
             path='sessions/by_speaker/{speaker}',
             http_method='GET', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
-        """Get list of all conference sessions for a specified speaker name"""
+        """Get list of all conference sessions for a specified speaker name."""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -574,7 +590,7 @@ class ConferenceApi(remote.Service):
             path='sessions/by_max_duration',
             http_method='GET', name='sessionsMaxDuration')
     def sessionsMaxDuration(self, request):
-        """Get list of all conference sessions with duration less or equal to max duration"""
+        """Get list of all conference sessions with duration less or equal to max duration."""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -599,7 +615,7 @@ class ConferenceApi(remote.Service):
     @endpoints.method(message_types.VoidMessage, SessionForms,
             http_method='GET', name='getEarlyNonWorkshopSessions')
     def getEarlyNonWorkshopSessions(self, request):
-        """Get all non-workshop sessions with start time before 7:00 pm"""
+        """Get all non-workshop sessions with start time before 7:00 pm."""
 
         sessions = Session.query(ndb.AND(
                 Session.startTime != None,
@@ -943,7 +959,17 @@ class ConferenceApi(remote.Service):
         return self._conferenceRegistration(request, reg=False)
 
 
-# - - - Adds featured speakers to memcache
+# - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
+
+
+   # Endpoint to get featured speaker from memcache
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+            path='featuredSpeaker',
+            http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Return featured speaker from memcache."""
+        featuredSpeaker = memcache.get(MEMCACHE_FEATURED_SPEAKER_KEY)
+        return StringMessage(data=featuredSpeaker)
 
 
 api = endpoints.api_server([ConferenceApi]) # register API
