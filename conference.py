@@ -476,8 +476,8 @@ class ConferenceApi(remote.Service):
             else:
                 # assign speaker name if valid key but no name was given
                 data['speakerName'] = speaker.displayName
-
-
+        
+        Session(**data).put()
 # - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
 
 
@@ -485,14 +485,12 @@ class ConferenceApi(remote.Service):
         if data['speakerName']:
             sessions = Session.query(Session.speakerName == data['speakerName'])
             if sessions.count() > 0:
-                memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
-                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speaker: %s will speak at %s" % (data['speakerName'], data['name']))
+                taskqueue.add(params={'speakerName': 'Lily Donge', 'sessionName': 'Burlesque'},
+                      url='/tasks/add_featured_speaker')
 
 
 # - - - End of Task 4, continued below - - - - - - - - - - - - - - -
 
-
-        Session(**data).put()
 
         return request
 
@@ -960,6 +958,16 @@ class ConferenceApi(remote.Service):
 
 
 # - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
+
+    
+    #
+    def cacheFeaturedSpeaker(self, speakerName, sessionName):
+        """Pass featured speaker into memcache."""
+        if speakerName and sessionName:
+            memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speaker: %s will speak at %s" % (speakerName, sessionName))
+        else:
+            # If there are no speakers delete the memcache entry
+            memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
 
 
    # Endpoint to get featured speaker from memcache

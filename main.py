@@ -15,7 +15,11 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 import webapp2
 from google.appengine.api import app_identity
 from google.appengine.api import mail
+from google.appengine.api import memcache
+from google.appengine.ext import ndb
+
 from conference import ConferenceApi
+
 
 class SetAnnouncementHandler(webapp2.RequestHandler):
     def get(self):
@@ -36,6 +40,14 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
             'conference:\r\n\r\n%s' % self.request.get(
                 'conferenceInfo')
         )
+
+
+class AddFeaturedSpeaker(webapp2.RequestHandler):
+    def post(self):
+        """Add featured speaker in memcache"""
+        speakerName = self.request.get('speakerName')
+        sessionName = self.request.get('sessionName')
+        ConferenceApi().cacheFeaturedSpeaker(speakerName, sessionName)
 
 
 app = webapp2.WSGIApplication([
