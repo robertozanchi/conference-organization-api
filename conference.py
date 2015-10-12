@@ -477,20 +477,27 @@ class ConferenceApi(remote.Service):
                 # assign speaker name if valid key but no name was given
                 data['speakerName'] = speaker.displayName
         
-        Session(**data).put()
+
 # - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
 
 
-        # inputs speaker key and name into featured speaker function in main.py 
+        # Pass speaker info into memcache if meets featured speaker criteria
         if data['speakerName']:
             sessions = Session.query(Session.speakerName == data['speakerName'])
             if sessions.count() > 0:
-                taskqueue.add(params={'speakerName': 'Lily Donge', 'sessionName': 'Burlesque'},
-                      url='/tasks/add_featured_speaker')
+                taskqueue.add(
+                    params={
+                    'speakerName': data['speakerName'],
+                    'sessionName': data['name']
+                    },
+                    url='/tasks/add_featured_speaker'
+                )
 
 
-# - - - End of Task 4, continued below - - - - - - - - - - - - - - -
+# - - - Task 4 continues below - - - - - - - - - - - - - - - - - - - -
 
+
+        Session(**data).put()
 
         return request
 
@@ -579,10 +586,7 @@ class ConferenceApi(remote.Service):
 
 # - - - Task 3: Work on additional queries - - - - - - - - - - - - -
 
-   # Query 2: Select sessions by speaker key
-   
 
-    
     # Query 1: Select sessions of specified maximum duration
     @endpoints.method(SESSION_MAX_DURATION, SessionForms,
             path='sessions/by_max_duration',
