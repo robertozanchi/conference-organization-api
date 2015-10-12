@@ -486,7 +486,7 @@ class ConferenceApi(remote.Service):
             sessions = Session.query(Session.speakerName == data['speakerName'])
             if sessions.count() > 0:
                 memcache.delete(MEMCACHE_FEATURED_SPEAKER_KEY)
-                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speaker: %s will speak at %s" % (data['speakerName'], data['name'])) 
+                memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speaker: %s will speak at %s" % (data['speakerName'], data['name']))
 
 
 # - - - End of Task 4, continued below - - - - - - - - - - - - - - -
@@ -969,7 +969,11 @@ class ConferenceApi(remote.Service):
     def getFeaturedSpeaker(self, request):
         """Return featured speaker from memcache."""
         featuredSpeaker = memcache.get(MEMCACHE_FEATURED_SPEAKER_KEY)
-        return StringMessage(data=featuredSpeaker)
+        if featuredSpeaker is None:
+            memcache.set(MEMCACHE_FEATURED_SPEAKER_KEY, "Featured speakers to be announced soon")
+            return StringMessage(data=featuredSpeaker)
+        else:
+            return StringMessage(data=featuredSpeaker)
 
 
 api = endpoints.api_server([ConferenceApi]) # register API

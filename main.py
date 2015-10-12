@@ -40,5 +40,6 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
 
 app = webapp2.WSGIApplication([
     ('/crons/set_announcement', SetAnnouncementHandler),
-    ('/tasks/send_confirmation_email', SendConfirmationEmailHandler),
+    ('/tasks/add_featured_speaker', AddFeaturedSpeaker),
+    ('/tasks/send_confirmation_email', SendConfirmationEmailHandler)
 ], debug=True)
