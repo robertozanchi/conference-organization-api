@@ -42,7 +42,7 @@ class SendConfirmationEmailHandler(webapp2.RequestHandler):
         )
 
 
-class AddFeaturedSpeaker(webapp2.RequestHandler):
+class AddFeaturedSpeakerHandler(webapp2.RequestHandler):
     def post(self):
         """Add featured speaker in memcache"""
         speakerName = self.request.get('speakerName')
@@ -52,6 +52,6 @@ class AddFeaturedSpeaker(webapp2.RequestHandler):
 
 app = webapp2.WSGIApplication([
     ('/crons/set_announcement', SetAnnouncementHandler),
-    ('/tasks/add_featured_speaker', AddFeaturedSpeaker),
+    ('/tasks/add_featured_speaker', AddFeaturedSpeakerHandler),
     ('/tasks/send_confirmation_email', SendConfirmationEmailHandler)
 ], debug=True)

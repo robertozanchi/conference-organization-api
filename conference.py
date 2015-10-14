@@ -115,6 +115,11 @@ SESSION_MAX_DURATION = endpoints.ResourceContainer(
     maxDuration=messages.IntegerField(1),
 )
 
+SESSION_REQUEST_TIME = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    timeSTR=messages.StringField(1),
+)
+
 COUNT_SPEAKER_SESSIONS = endpoints.ResourceContainer(
     message_types.VoidMessage,
     speaker=messages.StringField(1),
@@ -476,14 +481,15 @@ class ConferenceApi(remote.Service):
             else:
                 # assign speaker name if valid key but no name was given
                 data['speakerName'] = speaker.displayName
-        
+   
 
 # - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
 
 
-        # Pass speaker info into memcache if meets featured speaker criteria
+        # Pass featured speaker info into memcache with taskqueue
         if data['speakerName']:
             sessions = Session.query(Session.speakerName == data['speakerName'])
+            # Speaker must have at least two registered sessions to be featured
             if sessions.count() > 0:
                 taskqueue.add(
                     params={
@@ -584,6 +590,7 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in sessions]
         )
 
+
 # - - - Task 3: Work on additional queries - - - - - - - - - - - - -
 
 
@@ -592,7 +599,7 @@ class ConferenceApi(remote.Service):
             path='sessions/by_max_duration',
             http_method='GET', name='sessionsMaxDuration')
     def sessionsMaxDuration(self, request):
-        """Get list of all conference sessions with duration less or equal to max duration."""
+        """Get list of sessions with duration less or equal to max duration."""
 
         # copy ConferenceForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
@@ -606,8 +613,19 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in sessions]
         )
 
-    
-    # Query 2: 
+
+    # Query 2: Session by start time
+    @endpoints.method(SESSION_REQUEST_TIME, SessionForms,
+                      path='sessionsByTime',
+                      http_method='GET', name='sessionsStartTime')
+    def sessionsStartTime(self, request):
+        """Get list of sessions with a specified start time"""
+        # convert time from strings to time object
+        timeObj = datetime.strptime(request.timeSTR, "%H:%M").time()
+        sessions = Session.query(Session.startTime == timeObj)
+        # return SessionForms
+        return SessionForms(items=[self._copySessionToForm(session) \
+                            for session in sessions])
 
 
     # Query 3: Problem: How to select non-workshop sessions before 7 pm
@@ -964,7 +982,7 @@ class ConferenceApi(remote.Service):
 # - - - Task 4: Add a featured speaker in memcache - - - - - - - - - 
 
     
-    #
+    # Used by AddFeaturedSpeakerHandler
     def cacheFeaturedSpeaker(self, speakerName, sessionName):
         """Pass featured speaker into memcache."""
         if speakerName and sessionName:
@@ -986,6 +1004,9 @@ class ConferenceApi(remote.Service):
             return StringMessage(data=featuredSpeaker)
         else:
             return StringMessage(data=featuredSpeaker)
+
+
+# - - - End of task 4 - - - - - - - - - - - - - - - - - - - - - - -
 
 
 api = endpoints.api_server([ConferenceApi]) # register API
