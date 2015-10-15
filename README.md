@@ -29,6 +29,8 @@ The API supports the following fuctionalities:
 
 ## New API Functionalities
 
+This follows the project tasks [assigned by Udacity][5].
+
 ### Task 1: Add Sessions to a Conference
 
 To complete this task, the following functionalities were implemented:
@@ -135,7 +137,7 @@ are registered to attend the conference their desired sessions belong to or not.
 simply by retrieving the keys listed in the user's profile's `sessionWishlistKeys`.
 
 
-### Task 3: Work on indexes and queries
+### Task 3: Work on indeces and queries
 
 To complete this task, the following functionalities were implemented:
 - `sessionsMaxDuration()` API endpoint
@@ -143,13 +145,56 @@ To complete this task, the following functionalities were implemented:
 - `getEarlyNonWorkshopSessions()` API endpoint (problem solution)
 - Manually updated index.yaml with indices to support new endpoint queries
 
-#### sessionsMaxDuration() API endpoint
+#### `sessionsMaxDuration()` API endpoint
 
+`sessionsMaxDuration()` takes as input the desired maximum duration of a session 
+`maxDuration` and returns all sessions with duration less or equal to that value.
 
-### Task 4:
+#### `sessionsStartTime()` API endpoint
+
+`sessionsStartTime()` takes a starting time `timeSTR` as input and returns all existing
+sessions that commence at that exact time.
+
+#### `getEarlyNonWorkshopSessions()` API endpoint (problem solution)
+
+The problem: the problem presented by having to select sessions that are of a certain type
+e.g. not workshops, and that commence earler than a certain time e.g. 7pm is that
+potentially requires setting multiple inqualities on different fields in a ndb query.
+This is not supported by Google App Engine and can return the error:
+'BadRequestError: Only one inequality filter per query is supported`.
+
+Possible solution: a solution to this problem is to only set one of the two conditions in
+the ndb query in the form of an inequality, and return all sessions that match this first
+condition. The results obtained are can be then filtered through iteration in Python,
+where additional conditions can be applied in a for loop. `getEarlyNonWorkshopSessions()`
+is an implementation of a proposed solution following this approach.
+
+#### Updated index.yaml with indices
+
+I manually updated the indeces in index.yaml to support all the Session queries introduces
+by the new endpoints created and listed above.
+
+### Task 4: Add a Task
+
+To complete this task, the following functionalities were implemented:
+- `cacheFeaturedSpeaker()` API endpoint
+- `getFeaturedSpeaker()` API endpoint
+
+#### `cacheFeaturedSpeaker()` API endpoint
+
+`cacheFeaturedSpeaker()` loads a 'featured speaker' message into Memcache via `createSession()`.
+In `_createSessionObject()`, before a new session is created, the speakers' name is added
+as a featured speakers if the speaker has at least one other session scheduled. The speaker's
+name entry into Memcache is handled using App Engine's Task Queue. 
+
+#### `getFeaturedSpeaker()` API endpoint
+
+`getFeaturedSpeaker()` returns the current featured speaker message loaded into Memcache. If
+no speaker is featured yet, "Featured speakers to be announced soon" is set in Memcache instead.
 
 
 [1]: http://python.org
 [2]: https://developers.google.com/appengine
 [3]: https://console.developers.google.com/
 [4]: https://developers.google.com/appengine/docs/python/endpoints/endpoints_tool
+[5]: https://docs.google.com/document/d/1H9anIDV4QCPttiQEwpGe6MnMBx92XCOlz0B4ciD7lOs/pub#h.1xhyekfwdxa3
